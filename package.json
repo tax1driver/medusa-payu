@@ -65,7 +65,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@ingameltd/payu": "^1.0.5",
+    "@ingameltd/payu": "file:.yalc/@ingameltd/payu",
     "zod": "^4.3.5"
   }
 }

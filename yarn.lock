@@ -1921,13 +1921,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ingameltd/payu@npm:^1.0.5":
-  version: 1.0.5
-  resolution: "@ingameltd/payu@npm:1.0.5"
+"@ingameltd/payu@file:.yalc/@ingameltd/payu::locator=medusa-payu%40workspace%3A.":
+  version: 1.0.8
+  resolution: "@ingameltd/payu@file:.yalc/@ingameltd/payu#.yalc/@ingameltd/payu::hash=e5e2fc&locator=medusa-payu%40workspace%3A."
   dependencies:
     axios: "npm:^0.21.4"
     moment: "npm:^2.29.2"
-  checksum: 10c0/f3d50f3dce4070d3125bf3d34b07d55f490e141d169492693a32e821f4ceffc7516d2c2b077b5a9effef2b4aacdeb2cd90edc8b28e71a3b971247e62fa93f244
+    querystring: "npm:^0.2.1"
+  checksum: 10c0/4ed1be8a179fd7c5b049213d779c68db70b9847b9a742fc4711fcc6901695180c36ed98284295021d55dc2623750afe1b00dc96cf7de01713068d3d0e2dcc4f4
   languageName: node
   linkType: hard
 
@@ -12223,7 +12224,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "medusa-payu@workspace:."
   dependencies:
-    "@ingameltd/payu": "npm:^1.0.5"
+    "@ingameltd/payu": "file:.yalc/@ingameltd/payu"
     "@medusajs/admin-sdk": "npm:2.12.4"
     "@medusajs/cli": "npm:2.12.4"
     "@medusajs/framework": "npm:2.12.4"
@@ -13624,6 +13625,13 @@ __metadata:
   dependencies:
     side-channel: "npm:^1.1.0"
   checksum: 10c0/8ea5d91bf34f440598ee389d4a7d95820e3b837d3fd9f433871f7924801becaa0cd3b3b4628d49a7784d06a8aea9bc4554d2b6d8d584e2d221dc06238a42909c
+  languageName: node
+  linkType: hard
+
+"querystring@npm:^0.2.1":
+  version: 0.2.1
+  resolution: "querystring@npm:0.2.1"
+  checksum: 10c0/6841b32bec4f16ffe7f5b5e4373b47ad451f079cde3a7f45e63e550f0ecfd8f8189ef81fb50079413b3fc1c59b06146e4c98192cb74ed7981aca72090466cd94
   languageName: node
   linkType: hard
 

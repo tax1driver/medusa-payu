@@ -52,7 +52,6 @@ interface PayUPaymentData {
     session_id: string;
     order_id: string;
     amount: number;
-    method: "gateway";
     currency: string;
     url: string;
 }
@@ -95,6 +94,7 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
     }
 
     async initiatePayment(input: InitiatePaymentInput): Promise<InitiatePaymentOutput> {
+        this.logger_.info(`initiatePayment: ${JSON.stringify(input)}`);
         const sessionId = input.data?.session_id as string;
 
         if (!sessionId) {
@@ -133,11 +133,13 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
                 "Failed to create PayU order"
             );
         })
+
+        this.logger_.info(`PAYU ORDER CREATED: ${JSON.stringify(result)}`);
+
         const paymentData: PayUPaymentData = {
             session_id: sessionId,
             order_id: result.orderId,
             amount: order.totalAmount,
-            method: "gateway",
             currency: order.currencyCode,
             url: result.redirectUri,
         };
@@ -150,6 +152,7 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
     }
 
     async getWebhookActionAndData(payload: ProviderWebhookPayload["payload"]): Promise<WebhookActionResult> {
+        this.logger_.info(`getWebhookActionAndData: ${payload.rawData}) ${JSON.stringify(payload)}`);
         const { data, headers, rawData } = payload;
 
         const signatureHeader = headers['OpenPayu-Signature'];
@@ -168,6 +171,8 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
             );
         }
 
+        this.logger_.info(`PAYU WEBHOOK VALIDATED: ${JSON.stringify(data)}`);
+
         const notification = data as PayUNotification;
 
         if (notification.order.status === "COMPLETED") {
@@ -180,7 +185,7 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
             }
         } else if (notification.order.status === "CANCELED") {
             return {
-                action: "failed",
+                action: "canceled",
                 data: {
                     amount: Number(notification.order.totalAmount) / 100,
                     session_id: notification.order.extOrderId
@@ -197,13 +202,47 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
     }
 
     async authorizePayment(input: AuthorizePaymentInput): Promise<AuthorizePaymentOutput> {
-        return {
-            status: "pending",
-            data: { ...input.data }
-        };
+        this.logger_.info(`authorizePayment: ${JSON.stringify(input)}`);
+        const data = input.data as unknown as PayUPaymentData;
+
+        if (!data || !data.order_id) {
+            throw new MedusaError(
+                MedusaError.Types.INVALID_DATA,
+                "Order ID is required to authorize PayU payment"
+            );
+        }
+
+        const result = await this.client_
+            .getOrder(data.order_id)
+            .catch((e) => {
+                this.logger_.error(e);
+                throw new MedusaError(
+                    MedusaError.Types.UNEXPECTED_STATE,
+                    "Failed to retrieve PayU order"
+                );
+            });
+
+        const order = result.orders && result.orders![0] || null;
+
+        if (!order) {
+            throw new MedusaError(
+                MedusaError.Types.UNEXPECTED_STATE,
+                `PayU order with ID ${data.order_id} not found`
+            );
+        }
+
+        if (order.status !== "COMPLETED") {
+            throw new MedusaError(
+                MedusaError.Types.UNEXPECTED_STATE,
+                `PayU order with ID ${data.order_id} is not completed`
+            );
+        }
+
+        return { data: { ...input.data }, status: "authorized" };
     }
 
     async capturePayment(input: CapturePaymentInput): Promise<CapturePaymentOutput> {
+        this.logger_.info(`capturePayment: ${JSON.stringify(input)}`);
         const orderId = input.data?.order_id as string;
 
         if (!orderId) {
@@ -237,6 +276,7 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
     }
 
     async refundPayment(input: RefundPaymentInput): Promise<RefundPaymentOutput> {
+        this.logger_.info(`refundPayment: ${JSON.stringify(input)}`);
         const orderId = input.data?.order_id as string;
 
         if (!orderId) {
@@ -270,6 +310,7 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
     }
 
     async cancelPayment(input: CancelPaymentInput): Promise<CancelPaymentOutput> {
+        this.logger_.info(`cancelPayment: ${JSON.stringify(input)}`);
         const orderId = input.data?.order_id as string;
 
         if (!orderId) {
@@ -303,18 +344,56 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
     }
 
     async retrievePayment(input: RetrievePaymentInput): Promise<RetrievePaymentOutput> {
+        this.logger_.info(`retrievePayment: ${JSON.stringify(input)}`);
         return { data: { ...input.data } };
     }
 
     async deletePayment(input: DeletePaymentInput): Promise<DeletePaymentOutput> {
+        this.logger_.info(`deletePayment: ${JSON.stringify(input)}`);
         return { data: { ...input.data } };
     }
 
     async getPaymentStatus(input: GetPaymentStatusInput): Promise<GetPaymentStatusOutput> {
-        return { status: "pending" };
+        this.logger_.info(`getPaymentStatus: ${JSON.stringify(input)}`);
+        const data = input.data as unknown as PayUPaymentData;
+
+        if (!data || !data.order_id) {
+            throw new MedusaError(
+                MedusaError.Types.INVALID_DATA,
+                "Order ID is required to authorize PayU payment"
+            );
+        }
+
+        const result = await this.client_
+            .getOrder(data.order_id)
+            .catch((e) => {
+                this.logger_.error(e);
+                throw new MedusaError(
+                    MedusaError.Types.UNEXPECTED_STATE,
+                    "Failed to retrieve PayU order"
+                );
+            });
+
+        const order = result.orders && result.orders![0] || null;
+
+        if (!order) {
+            throw new MedusaError(
+                MedusaError.Types.UNEXPECTED_STATE,
+                `PayU order with ID ${data.order_id} not found`
+            );
+        }
+
+        if (order.status === "COMPLETED") {
+            return { status: "authorized", data: { ...input.data } };
+        } else if (order.status === "CANCELED") {
+            return { status: "canceled", data: { ...input.data } };
+        } else {
+            return { status: "pending", data: { ...input.data } };
+        }
     }
 
     async updatePayment(input: UpdatePaymentInput): Promise<UpdatePaymentOutput> {
+        this.logger_.info(`updatePayment: ${JSON.stringify(input)}`);
         return { data: { ...input.data } };
     }
 }
