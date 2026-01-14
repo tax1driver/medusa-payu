@@ -1,4 +1,4 @@
-import { AbstractPaymentProvider, MedusaError } from "@medusajs/framework/utils";
+import { AbstractPaymentProvider, MedusaError, ModuleProvider, Modules } from "@medusajs/framework/utils";
 import { z } from "zod";
 import { Currency, Order, PayU, Buyer, Product } from "@ingameltd/payu";
 import { Logger } from "@medusajs/medusa";
@@ -397,3 +397,7 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
         return { data: { ...input.data } };
     }
 }
+
+export default ModuleProvider(Modules.PAYMENT, {
+    services: [PayUPaymentProviderService],
+});
