@@ -29,9 +29,9 @@ This plugin provides PayU payment integration for Medusa commerce platform.
 ## Installation
 
 ```bash
-npm install medusa-payu
+npm install @tax1driver/medusa-payu
 # or
-yarn add medusa-payu
+yarn add @tax1driver/medusa-payu
 ```
 
 ## Configuration
@@ -46,7 +46,7 @@ modules: [
     options: {
       providers: [
         {
-          resolve: 'medusa-payu/providers/payu',
+          resolve: '@tax1driver/medusa-payu/providers/payu',
           options: {
             clientId: process.env.PAYU_CLIENT_ID,
             clientSecret: process.env.PAYU_CLIENT_SECRET,

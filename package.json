@@ -1,8 +1,8 @@
 {
-  "name": "medusa-payu",
+  "name": "@tax1driver/medusa-payu",
   "version": "0.0.2",
-  "description": "A starter for Medusa plugins.",
-  "author": "Medusa (https://medusajs.com)",
+  "description": "Medusa PayU Payment Provider",
+  "author": "Maciej Gerhards (https://github.com/tax1driver)",
   "license": "MIT",
   "files": [
     ".medusa/server"
@@ -65,7 +65,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@tax1driver/ts-payu": "file:.yalc/@tax1driver/ts-payu",
+    "@tax1driver/ts-payu": "^1.1.0",
     "zod": "^4.3.5"
   }
 }
