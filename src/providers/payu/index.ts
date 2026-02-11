@@ -1,31 +1,9 @@
 import { AbstractPaymentProvider, MedusaError, ModuleProvider, Modules } from "@medusajs/framework/utils";
 import { z } from "zod";
-import { Currency, Order, PayU, Buyer, Product } from "@ingameltd/payu";
+import { Currency, Order, PayU, Buyer, Product, OrderNotification } from "@tax1driver/ts-payu";
 import { Logger } from "@medusajs/medusa";
 import { AuthorizePaymentInput, AuthorizePaymentOutput, CancelPaymentInput, CancelPaymentOutput, CapturePaymentInput, CapturePaymentOutput, DeletePaymentInput, DeletePaymentOutput, GetPaymentStatusInput, GetPaymentStatusOutput, InitiatePaymentInput, InitiatePaymentOutput, ProviderWebhookPayload, RefundPaymentInput, RefundPaymentOutput, RetrievePaymentInput, RetrievePaymentOutput, UpdatePaymentInput, UpdatePaymentOutput, WebhookActionResult } from "@medusajs/types";
 
-export type PayUNotification = {
-    order: {
-        orderId: string;
-        extOrderId: string;
-        orderCreateDate: string;
-        notifyUrl: string;
-        customerIp: string;
-        merchantPosId: string;
-        description: string;
-        currencyCode: string;
-        totalAmount: string;
-        buyer: Buyer;
-        payMethod: string;
-        products: Product[];
-        status: string;
-    };
-    localReceiptDateTime: string;
-    properties: Array<{
-        name: string;
-        value: string;
-    }>;
-};
 
 export const PayUOptionsSchema = z.object({
     clientId: z.coerce.number(),
@@ -94,7 +72,6 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
     }
 
     async initiatePayment(input: InitiatePaymentInput): Promise<InitiatePaymentOutput> {
-        this.logger_.info(`initiatePayment: ${JSON.stringify(input)}`);
         const sessionId = input.data?.session_id as string;
 
         if (!sessionId) {
@@ -104,7 +81,7 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
             );
         }
 
-        if (!SupportedCurrencies.includes(input.currency_code)) {
+        if (!SupportedCurrencies.includes(input.currency_code.toUpperCase())) {
             throw new MedusaError(
                 MedusaError.Types.INVALID_ARGUMENT,
                 `Currency ${input.currency_code} is not supported by PayU`
@@ -115,7 +92,7 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
 
         const order: Order = {
             description: this.options_.title || `Płatność za zamówienie #${sessionId}`,
-            currencyCode: input.currency_code as unknown as Currency,
+            currencyCode: input.currency_code.toUpperCase() as unknown as Currency,
             totalAmount: Math.ceil(Number(input.amount) * 100),
             customerIp: parsedInput.customer_ip,
             buyer: {
@@ -127,14 +104,7 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
             products: []
         };
 
-        const result = await this.client_.createOrder(order).catch(() => {
-            throw new MedusaError(
-                MedusaError.Types.UNEXPECTED_STATE,
-                "Failed to create PayU order"
-            );
-        })
-
-        this.logger_.info(`PAYU ORDER CREATED: ${JSON.stringify(result)}`);
+        const result = await this.client_.createOrder(order);
 
         const paymentData: PayUPaymentData = {
             session_id: sessionId,
@@ -147,15 +117,14 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
         return {
             id: sessionId,
             data: { ...paymentData },
-            status: "requires_more"
+            status: "pending"
         }
     }
 
     async getWebhookActionAndData(payload: ProviderWebhookPayload["payload"]): Promise<WebhookActionResult> {
-        this.logger_.info(`getWebhookActionAndData: ${payload.rawData}) ${JSON.stringify(payload)}`);
         const { data, headers, rawData } = payload;
 
-        const signatureHeader = headers['OpenPayu-Signature'];
+        const signatureHeader = Object.entries(headers).find(([key, _]) => key.toLowerCase() === "openpayu-signature" || key.toLowerCase() === "x-openpayu-signature")?.[1];
         if (!signatureHeader || typeof signatureHeader !== 'string') {
             throw new MedusaError(
                 MedusaError.Types.INVALID_DATA,
@@ -171,9 +140,14 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
             );
         }
 
-        this.logger_.info(`PAYU WEBHOOK VALIDATED: ${JSON.stringify(data)}`);
+        const notification = data as unknown as OrderNotification;
 
-        const notification = data as PayUNotification;
+        if (!notification.order.extOrderId) {
+            throw new MedusaError(
+                MedusaError.Types.INVALID_DATA,
+                "Missing extOrderId in PayU webhook payload"
+            );
+        }
 
         if (notification.order.status === "COMPLETED") {
             return {
@@ -191,18 +165,20 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
                     session_id: notification.order.extOrderId
                 }
             }
+        } else {
+            return {
+                action: "pending",
+                data: {
+                    amount: Number(notification.order.totalAmount) / 100,
+                    session_id: notification.order.extOrderId
+                }
+            }
         }
-
-        throw new MedusaError(
-            MedusaError.Types.UNEXPECTED_STATE,
-            `Unhandled PayU order status: ${notification.order.status}`
-        );
 
 
     }
 
     async authorizePayment(input: AuthorizePaymentInput): Promise<AuthorizePaymentOutput> {
-        this.logger_.info(`authorizePayment: ${JSON.stringify(input)}`);
         const data = input.data as unknown as PayUPaymentData;
 
         if (!data || !data.order_id) {
@@ -215,7 +191,6 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
         const result = await this.client_
             .getOrder(data.order_id)
             .catch((e) => {
-                this.logger_.error(e);
                 throw new MedusaError(
                     MedusaError.Types.UNEXPECTED_STATE,
                     "Failed to retrieve PayU order"
@@ -242,7 +217,6 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
     }
 
     async capturePayment(input: CapturePaymentInput): Promise<CapturePaymentOutput> {
-        this.logger_.info(`capturePayment: ${JSON.stringify(input)}`);
         const orderId = input.data?.order_id as string;
 
         if (!orderId) {
@@ -253,9 +227,6 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
         }
 
         const captureResult = await this.client_.captureOrder(orderId).catch((e) => {
-            this.logger_.error(`Failed to capture PayU order with ID: ${orderId}`);
-            this.logger_.error(JSON.stringify(e));
-
             throw new MedusaError(
                 MedusaError.Types.UNEXPECTED_STATE,
                 "Failed to capture PayU order"
@@ -263,9 +234,6 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
         });
 
         if (captureResult.status.statusCode !== "SUCCESS") {
-            this.logger_.error(`Failed to capture PayU order with ID: ${orderId}, status: ${captureResult.status.statusCode}`);
-            this.logger_.error(JSON.stringify(captureResult));
-
             throw new MedusaError(
                 MedusaError.Types.UNEXPECTED_STATE,
                 `Failed to capture PayU order with status: ${captureResult.status.statusCode}`
@@ -276,7 +244,6 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
     }
 
     async refundPayment(input: RefundPaymentInput): Promise<RefundPaymentOutput> {
-        this.logger_.info(`refundPayment: ${JSON.stringify(input)}`);
         const orderId = input.data?.order_id as string;
 
         if (!orderId) {
@@ -287,9 +254,6 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
         }
 
         const refundResult = await this.client_.refundOrder(orderId, this.options_.refundDescription || "Refund").catch((e) => {
-            this.logger_.error(`Failed to refund PayU order with ID: ${orderId}`);
-            this.logger_.error(JSON.stringify(e))
-
             throw new MedusaError(
                 MedusaError.Types.UNEXPECTED_STATE,
                 "Failed to refund PayU order"
@@ -297,9 +261,6 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
         });
 
         if (refundResult.status.statusCode !== "SUCCESS") {
-            this.logger_.error(`Failed to refund PayU order with ID: ${orderId}, status: ${refundResult.status.statusCode}`);
-            this.logger_.error(JSON.stringify(refundResult));
-
             throw new MedusaError(
                 MedusaError.Types.UNEXPECTED_STATE,
                 `Failed to refund PayU order with status: ${refundResult.status.statusCode}`
@@ -310,7 +271,6 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
     }
 
     async cancelPayment(input: CancelPaymentInput): Promise<CancelPaymentOutput> {
-        this.logger_.info(`cancelPayment: ${JSON.stringify(input)}`);
         const orderId = input.data?.order_id as string;
 
         if (!orderId) {
@@ -321,9 +281,6 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
         }
 
         const cancelResult = await this.client_.cancelOrder(orderId).catch((e) => {
-            this.logger_.error(`Failed to cancel PayU order with ID: ${orderId}`);
-            this.logger_.error(JSON.stringify(e));
-
             throw new MedusaError(
                 MedusaError.Types.UNEXPECTED_STATE,
                 "Failed to cancel PayU order"
@@ -331,9 +288,6 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
         });
 
         if (cancelResult.status.statusCode !== "SUCCESS") {
-            this.logger_.error(`Failed to cancel PayU order with ID: ${orderId}, status: ${cancelResult.status.statusCode}`);
-            this.logger_.error(JSON.stringify(cancelResult));
-
             throw new MedusaError(
                 MedusaError.Types.UNEXPECTED_STATE,
                 `Failed to cancel PayU order with status: ${cancelResult.status.statusCode}`
@@ -344,17 +298,14 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
     }
 
     async retrievePayment(input: RetrievePaymentInput): Promise<RetrievePaymentOutput> {
-        this.logger_.info(`retrievePayment: ${JSON.stringify(input)}`);
         return { data: { ...input.data } };
     }
 
     async deletePayment(input: DeletePaymentInput): Promise<DeletePaymentOutput> {
-        this.logger_.info(`deletePayment: ${JSON.stringify(input)}`);
         return { data: { ...input.data } };
     }
 
     async getPaymentStatus(input: GetPaymentStatusInput): Promise<GetPaymentStatusOutput> {
-        this.logger_.info(`getPaymentStatus: ${JSON.stringify(input)}`);
         const data = input.data as unknown as PayUPaymentData;
 
         if (!data || !data.order_id) {
@@ -367,7 +318,6 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
         const result = await this.client_
             .getOrder(data.order_id)
             .catch((e) => {
-                this.logger_.error(e);
                 throw new MedusaError(
                     MedusaError.Types.UNEXPECTED_STATE,
                     "Failed to retrieve PayU order"
@@ -393,8 +343,11 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
     }
 
     async updatePayment(input: UpdatePaymentInput): Promise<UpdatePaymentOutput> {
-        this.logger_.info(`updatePayment: ${JSON.stringify(input)}`);
         return { data: { ...input.data } };
+    }
+
+    getIdentifier(): string {
+        return PayUPaymentProviderService.identifier;
     }
 }
 

@@ -1,10 +1,9 @@
 {
   "version": "v1",
   "packages": {
-    "@ingameltd/payu": {
-      "signature": "ed6645f24da567ba3f3a2dfd81e29332",
-      "file": true,
-      "replaced": "^1.0.5"
+    "@tax1driver/ts-payu": {
+      "signature": "8c6b8b357867f0e55c77e29a43b418b2",
+      "file": true
     }
   }
 }

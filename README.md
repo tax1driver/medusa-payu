@@ -7,58 +7,110 @@
     </picture>
   </a>
 </p>
-<h1 align="center">
-  Medusa Plugin Starter
-</h1>
+<h2 align="center">
+  Medusa PayU Payment Provider
+</h2>
 
-<h4 align="center">
-  <a href="https://docs.medusajs.com">Documentation</a> |
-  <a href="https://www.medusajs.com">Website</a>
-</h4>
-
-<p align="center">
-  Building blocks for digital commerce
-</p>
-<p align="center">
-  <a href="https://github.com/medusajs/medusa/blob/master/CONTRIBUTING.md">
-    <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat" alt="PRs welcome!" />
-  </a>
-    <a href="https://www.producthunt.com/posts/medusa"><img src="https://img.shields.io/badge/Product%20Hunt-%231%20Product%20of%20the%20Day-%23DA552E" alt="Product Hunt"></a>
-  <a href="https://discord.gg/xpCwq3Kfn8">
-    <img src="https://img.shields.io/badge/chat-on%20discord-7289DA.svg" alt="Discord Chat" />
-  </a>
-  <a href="https://twitter.com/intent/follow?screen_name=medusajs">
-    <img src="https://img.shields.io/twitter/follow/medusajs.svg?label=Follow%20@medusajs" alt="Follow @medusajs" />
-  </a>
-</p>
+<h5 align="center">
+  <a href="https://docs.medusajs.com">MedusaJS</a> |
+  <a href="https://www.payu.com">PayU Homepage</a> |
+  <a href="https://developers.payu.com">PayU Docs</a> |
+  <a href="https://www.npmjs.com/package/medusa-payu">npm</a>
+</h5>
 
 ## Compatibility
 
-This starter is compatible with versions >= 2.4.0 of `@medusajs/medusa`. 
+This plugin is compatible with Medusa v2.4.0+.
 
-## Getting Started
+## Overview
 
-Visit the [Quickstart Guide](https://docs.medusajs.com/learn/installation) to set up a server.
+This plugin provides PayU payment integration for Medusa commerce platform.
 
-Visit the [Plugins documentation](https://docs.medusajs.com/learn/fundamentals/plugins) to learn more about plugins and how to create them.
+## Installation
 
-Visit the [Docs](https://docs.medusajs.com/learn/installation#get-started) to learn more about our system requirements.
+```bash
+npm install medusa-payu
+# or
+yarn add medusa-payu
+```
 
-## What is Medusa
+## Configuration
 
-Medusa is a set of commerce modules and tools that allow you to build rich, reliable, and performant commerce applications without reinventing core commerce logic. The modules can be customized and used to build advanced ecommerce stores, marketplaces, or any product that needs foundational commerce primitives. All modules are open-source and freely available on npm.
+Add the payment provider configuration to your `medusa-config.ts`:
 
-Learn more about [Medusa’s architecture](https://docs.medusajs.com/learn/introduction/architecture) and [commerce modules](https://docs.medusajs.com/learn/fundamentals/modules/commerce-modules) in the Docs.
+```typescript
+modules: [
+  // ... other modules ...
+  {
+    resolve: "@medusajs/medusa/payment",
+    options: {
+      providers: [
+        {
+          resolve: 'medusa-payu/providers/payu',
+          options: {
+            clientId: process.env.PAYU_CLIENT_ID,
+            clientSecret: process.env.PAYU_CLIENT_SECRET,
+            merchantPosId: process.env.PAYU_MERCHANT_POS_ID,
+            secondKey: process.env.PAYU_SECOND_KEY,
+            sandbox: process.env.PAYU_SANDBOX === "true",
+            returnUrl: process.env.PAYU_RETURN_URL,
+            
+            // By default, this should be your backend's base URL + /hooks/payment/payu (e.g. https://example.com/hooks/payment/payu)
+            callbackUrl: process.env.PAYU_CALLBACK_URL || `${process.env.APP_BASE_URL}/hooks/payment/payu`,
+            
+            title: "Payment for order", // Optional
+            refundDescription: "Refund", // Optional
+          },
+        },
+      ],
+    }
+  }
+]
+```
 
-## Community & Contributions
+## Usage
 
-The community and core team are available in [GitHub Discussions](https://github.com/medusajs/medusa/discussions), where you can ask for support, discuss roadmap, and share ideas.
+### Overview
 
-Join our [Discord server](https://discord.com/invite/medusajs) to meet other community members.
+Once configured, PayU will be available as a payment provider in your Medusa store. The plugin integrates seamlessly with Medusa's payment workflow to handle the complete payment lifecycle.
 
-## Other channels
+### Required Data
+The following data is required from your checkout flow and needs to be provided in the `initiatePaymentSession` call in order to create a PayU transaction:
 
-- [GitHub Issues](https://github.com/medusajs/medusa/issues)
-- [Twitter](https://twitter.com/medusajs)
-- [LinkedIn](https://www.linkedin.com/company/medusajs)
-- [Medusa Blog](https://medusajs.com/blog/)
+```ts
+const payuData = {
+  customer_ip: string;
+  email: string;
+}
+```
+
+
+### Payment Flow
+
+When a customer selects PayU as their payment method during checkout, the plugin creates a new transaction with PayU and returns a payment URL.
+
+1. **Redirect**: Redirect the customer to the provided PayU payment URL to let them complete the payment on PayU's payment page.
+2. **Payment Processing**: After completing or canceling the payment, the customer is redirected back to your store via the configured values.
+   
+3. **Webhook Notification**: PayU sends a webhook notification to your configured `callbackUrl` endpoint to confirm the payment status. The plugin automatically validates and processes these webhooks.
+
+4. **Order Completion**: Based on the webhook data, Medusa updates the payment and order status accordingly.
+
+
+### Webhook Configuration
+
+The webhook endpoint is automatically registered at `/hooks/payment/payu`. Ensure that:
+
+- Your `callbackUrl` points to this endpoint (e.g., `https://yourdomain.com/hooks/payment/payu`)
+- The endpoint is publicly accessible
+- Your firewall allows incoming requests from PayU's servers
+
+### Refunds
+
+Refunds can be processed through Medusa's admin panel or API. The plugin will:
+
+- Create a refund request with PayU
+- Process partial or full refunds
+- Update the order status in Medusa accordingly
+
+You can customize the refund description using the `refundDescription` option in the plugin configuration.
