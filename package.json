@@ -1,6 +1,6 @@
 {
   "name": "@tax1driver/medusa-payu",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Medusa PayU Payment Provider",
   "author": "Maciej Gerhards (https://github.com/tax1driver)",
   "license": "MIT",
@@ -23,9 +23,13 @@
   "keywords": [
     "medusa",
     "plugin",
-    "medusa-plugin-other",
     "medusa-plugin",
-    "medusa-v2"
+    "medusa-v2",
+    "medusa-plugin-payment",
+    "medusa-plugin-integration",
+    "payu",
+    "payu-eu",
+    "payment"
   ],
   "scripts": {
     "build": "medusa plugin:build",
