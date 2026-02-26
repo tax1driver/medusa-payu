@@ -343,7 +343,10 @@ export class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOpti
     }
 
     async updatePayment(input: UpdatePaymentInput): Promise<UpdatePaymentOutput> {
-        return { data: { ...input.data } };
+        throw new MedusaError(
+            MedusaError.Types.INVALID_ARGUMENT,
+            "Updating PayU payments is not supported"
+        );
     }
 
     getIdentifier(): string {
