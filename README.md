@@ -15,7 +15,7 @@
   <a href="https://docs.medusajs.com">MedusaJS</a> |
   <a href="https://www.payu.com">PayU Homepage</a> |
   <a href="https://developers.payu.com">PayU Docs</a> |
-  <a href="https://www.npmjs.com/package/medusa-payu">npm</a>
+  <a href="https://www.npmjs.com/package/@tax1driver/medusa-payu">npm</a>
 </h5>
 
 ## Compatibility
