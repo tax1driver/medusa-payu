@@ -1,6 +1,6 @@
 {
   "name": "@tax1driver/medusa-payu",
-  "version": "0.0.3",
+  "version": "1.0.0",
   "description": "Medusa PayU Payment Provider",
   "author": "Maciej Gerhards (https://github.com/tax1driver)",
   "license": "MIT",
